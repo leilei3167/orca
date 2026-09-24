@@ -192,6 +192,40 @@ describe('upsertProjectTrustLevel', () => {
 
   it.each([
     {
+      name: 'basic-quoted trust_level (#22592 exact bytes)',
+      header: '["projects"."/Users/me/Projects/agentic-WPS"]',
+      trustLine: '"trust_level" = "untrusted"',
+      projectPath: '/Users/me/Projects/agentic-WPS'
+    },
+    {
+      name: 'literal-quoted trust_level',
+      header: "['projects'.'/tmp/codex-ws']",
+      trustLine: "'trust_level' = 'untrusted'",
+      projectPath: '/tmp/codex-ws'
+    }
+  ])(
+    'updates $name without appending a duplicate key or table',
+    ({ header, trustLine, projectPath }) => {
+      // Why: #22592 step 1 shows Codex writing `"trust_level" = "trusted"` under a
+      // quoted projects header. Finding the header but missing the quoted key used
+      // to insert a second bare trust_level — still a TOML duplicate-key failure.
+      const original = [header, trustLine, ''].join('\n')
+
+      const updated = upsertProjectTrustLevelInContent(original, projectPath, 'trusted', {
+        alreadyCanonical: true
+      })
+
+      expect(updated).toContain(header)
+      expect(updated).toContain('trust_level = "trusted"')
+      expect(updated).not.toContain(trustLine)
+      expect(updated).not.toContain(`[projects."${projectPath}"]`)
+      expect(updated.match(/trust_level\s*=/g)).toHaveLength(1)
+      expect(updated.match(/\[[^\]]*projects/g)).toHaveLength(1)
+    }
+  )
+
+  it.each([
+    {
       name: 'drive-letter casing and separators',
       existingPath: 'c:\\work\\repo',
       incomingPath: 'C:/work/repo'
