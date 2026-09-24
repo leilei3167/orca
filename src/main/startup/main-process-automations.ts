@@ -1,5 +1,5 @@
 import { AutomationService } from '../automations/service'
-import { createHeadlessAutomationOutputSnapshotBuffer } from '../automations/headless-dispatch'
+import { createHeadlessAutomationCompletion } from '../automations/headless-dispatch-terminal-completion'
 import { buildHeadlessAutomationWorktreeCreateArgs } from '../automations/headless-workspace-create'
 import { createRuntimeAutomationRunTerminalObserver } from '../automations/runtime-terminal-run-observer'
 import { mainProcessState as state } from './main-process-state'
@@ -12,16 +12,16 @@ export function initializeMainProcessAutomations(): AutomationService {
   if (!store || !runtime || !claudeUsage || !codexUsage) {
     throw new Error('Runtime and usage stores must be initialized before automations')
   }
+  const terminalObserver = createRuntimeAutomationRunTerminalObserver(runtime)
   const service = new AutomationService(store, {
     claudeUsage,
     codexUsage,
-    terminalObserver: createRuntimeAutomationRunTerminalObserver(runtime),
+    terminalObserver,
     onAutomationsChanged: (payload) => runtime.notifyAutomationsChanged(payload),
     // Why: desktop clients mirror remote-host automations, but only a server process should execute remote_host_service-owned schedules.
     allowRemoteHostScheduling: state.isServeMode,
     headlessDispatcher: state.isServeMode
       ? async ({ automation, run, target }) => {
-          const terminalSnapshotLimit = 2_000
           let terminalHandle: string
           let terminalSessionId: string | null = null
           let terminalPaneKey: string | null = null
@@ -61,28 +61,11 @@ export function initializeMainProcessAutomations(): AutomationService {
             const worktree = await runtime.showManagedWorktree(`id:${workspaceId}`)
             workspaceDisplayName = worktree.displayName ?? null
           }
-          const completion = (async () => {
-            const wait = await runtime.waitForTerminal(terminalHandle, { condition: 'tui-idle' })
-            const read = await runtime.readTerminal(terminalHandle, {
-              limit: terminalSnapshotLimit
-            })
-            const snapshotBuffer = createHeadlessAutomationOutputSnapshotBuffer()
-            snapshotBuffer.append(read.tail.join('\n'))
-            if (wait.satisfied) {
-              return {
-                status: 'completed' as const,
-                outputSnapshot: snapshotBuffer.snapshot(),
-                error: null
-              }
-            }
-            return {
-              status: 'dispatch_failed' as const,
-              outputSnapshot: snapshotBuffer.snapshot(),
-              error: wait.blockedReason
-                ? `Automation agent is blocked: ${wait.blockedReason}.`
-                : 'Automation agent did not report completion.'
-            }
-          })()
+          const completion = createHeadlessAutomationCompletion({
+            observeCompletion: (handle, options) =>
+              terminalObserver.observeCompletion(handle, options),
+            terminalHandle
+          })
           return {
             workspaceId,
             workspaceDisplayName,
