@@ -150,6 +150,48 @@ describe('upsertProjectTrustLevel', () => {
 
   it.each([
     {
+      name: 'basic-quoted projects key',
+      header: '["projects"."/tmp/codex-ws"]'
+    },
+    {
+      name: 'literal-quoted projects key',
+      header: "['projects'.'/tmp/codex-ws']"
+    }
+  ])('updates Codex $name headers without appending a duplicate table', ({ header }) => {
+    // Why: Codex 0.154+ writes ["projects"."…"] / ['projects'.'…']; Orca used to
+    // miss those headers and append a second [projects."…"] block (#22592).
+    const original = [header, 'notes = "keep"', 'trust_level = "untrusted"', ''].join('\n')
+
+    const updated = upsertProjectTrustLevelInContent(original, '/tmp/codex-ws', 'trusted', {
+      alreadyCanonical: true
+    })
+
+    expect(updated).toContain(header)
+    expect(updated).toContain('notes = "keep"')
+    expect(updated).toContain('trust_level = "trusted"')
+    expect(updated).not.toContain('trust_level = "untrusted"')
+    expect(updated).not.toContain('[projects."/tmp/codex-ws"]')
+    expect(updated.match(/trust_level\s*=/g)).toHaveLength(1)
+  })
+
+  it('matches a Codex quoted-key header whose path needs basic-string decoding', () => {
+    // Why: path comparison must decode escapes; raw text between quotes still misses.
+    const projectPath = '/tmp/with"quote'
+    const header = `["projects"."${escapeTomlString(projectPath)}"]`
+    const original = [header, 'trust_level = "untrusted"', ''].join('\n')
+
+    const updated = upsertProjectTrustLevelInContent(original, projectPath, 'trusted', {
+      alreadyCanonical: true
+    })
+
+    expect(updated).toContain(header)
+    expect(updated).toContain('trust_level = "trusted"')
+    expect(updated).not.toContain('trust_level = "untrusted"')
+    expect(updated.match(/trust_level\s*=/g)).toHaveLength(1)
+  })
+
+  it.each([
+    {
       name: 'drive-letter casing and separators',
       existingPath: 'c:\\work\\repo',
       incomingPath: 'C:/work/repo'
