@@ -75,12 +75,22 @@ describe('createHeadlessAutomationCompletion (#22725)', () => {
     vi.useRealTimers()
   })
 
-  it('documents the bare tui-idle wait that failed long runs at 5 minutes', async () => {
-    const runtime = createFakeRuntime({ lastAgentStatus: 'working' })
-    const bare = runtime.waitForTerminal(HANDLE, { condition: 'tui-idle' })
-    const expectation = expect(bare).rejects.toThrow('timeout')
-    await vi.advanceTimersByTimeAsync(RUNTIME_TUI_IDLE_TIMEOUT_MS)
-    await expectation
+  it('routes headless completion through observeCompletion', async () => {
+    const observeCompletion = vi.fn(async () => ({
+      status: 'completed' as const,
+      outputSnapshot: null,
+      error: null
+    }))
+    await expect(
+      createHeadlessAutomationCompletion({
+        observeCompletion,
+        terminalHandle: HANDLE
+      })
+    ).resolves.toMatchObject({ status: 'completed', error: null })
+    expect(observeCompletion).toHaveBeenCalledWith(
+      HANDLE,
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
   })
 
   it('still completes after the agent works past the 5-minute tui-idle default', async () => {

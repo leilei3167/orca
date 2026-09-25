@@ -58,8 +58,23 @@ export function initializeMainProcessAutomations(): AutomationService {
             terminalPaneKey = terminal.paneKey ?? null
             terminalPtyId = terminal.ptyId ?? null
             workspaceId = terminal.worktreeId
+            // Attach before showManagedWorktree: a reused pane can finish during that
+            // await, and the shared observer would treat leftover idle as "never started".
+            const completion = createHeadlessAutomationCompletion({
+              observeCompletion: (handle, options) =>
+                terminalObserver.observeCompletion(handle, options),
+              terminalHandle
+            })
             const worktree = await runtime.showManagedWorktree(`id:${workspaceId}`)
             workspaceDisplayName = worktree.displayName ?? null
+            return {
+              workspaceId,
+              workspaceDisplayName,
+              terminalSessionId,
+              terminalPaneKey,
+              terminalPtyId,
+              completion
+            }
           }
           const completion = createHeadlessAutomationCompletion({
             observeCompletion: (handle, options) =>
