@@ -17,6 +17,7 @@ export type HeadlessAutomationDispatchContext = {
   run: AutomationRun
   target: Extract<AutomationRunTargetResult, { ok: true }>
   dispatcher: HeadlessAutomationDispatcher
+  beginHeadlessCompletionAbort: (runId: string) => AbortController
   runs: AutomationRunWriter
   runPrecheck: () => Promise<AutomationPrecheckResult | null>
   markDispatchResult: (result: AutomationDispatchResult) => Promise<AutomationRun>
@@ -53,7 +54,13 @@ export async function runHeadlessAutomationDispatch(
     })
   }
   try {
-    const launch = await ctx.dispatcher({ automation, run, target })
+    const completionAbort = ctx.beginHeadlessCompletionAbort(run.id)
+    const launch = await ctx.dispatcher({
+      automation,
+      run,
+      target,
+      completionSignal: completionAbort.signal
+    })
     const launchRunTarget = {
       workspaceId: launch.workspaceId,
       workspaceDisplayName: launch.workspaceDisplayName ?? null,

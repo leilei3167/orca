@@ -7,15 +7,20 @@ import type {
 export class HeadlessCompletionAbortRegistry {
   private readonly controllers = new Map<string, AbortController>()
 
+  beginRun(runId: string): AbortController {
+    const controller = new AbortController()
+    this.controllers.set(runId, controller)
+    return controller
+  }
+
   wrapDispatcher(inner: HeadlessAutomationDispatcher): HeadlessAutomationDispatcher {
     return async (request) => {
-      const controller = new AbortController()
-      this.controllers.set(request.run.id, controller)
+      const controller = this.controllers.get(request.run.id)
+      if (!controller || controller.signal !== request.completionSignal) {
+        throw new Error('Headless completion abort must begin before dispatch.')
+      }
       try {
-        const launch = await inner({
-          ...request,
-          completionSignal: controller.signal
-        })
+        const launch = await inner(request)
         this.trackCompletion(request.run.id, controller, launch)
         return { ...launch, completionAbortSignal: controller.signal }
       } catch (error) {
@@ -41,10 +46,12 @@ export class HeadlessCompletionAbortRegistry {
       this.controllers.delete(runId)
       return
     }
-    void launch.completion.finally(() => {
-      if (this.controllers.get(runId) === controller) {
-        this.controllers.delete(runId)
-      }
-    })
+    void launch.completion
+      .finally(() => {
+        if (this.controllers.get(runId) === controller) {
+          this.controllers.delete(runId)
+        }
+      })
+      .catch(() => {})
   }
 }

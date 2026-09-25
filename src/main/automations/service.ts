@@ -314,6 +314,7 @@ export class AutomationService {
           run,
           target,
           dispatcher: this.headlessDispatcher,
+          beginHeadlessCompletionAbort: (runId) => this.headlessCompletionAbort.beginRun(runId),
           runs: this.runs,
           runPrecheck: () => this.runPrecheck(automation.id, run.id),
           markDispatchResult: (result) => this.markDispatchResult(result),
