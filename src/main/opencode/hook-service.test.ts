@@ -316,6 +316,32 @@ describe('OpenCodeHookService buildPtyEnv / clearPty round-trip', () => {
     ).toBe(freshSource)
   })
 
+  // Why: if the resolved ~/.config/opencode write fails, the shared legacy
+  // OPENCODE_CONFIG_DIR copy must still refresh — otherwise OpenCode keeps a
+  // pre-setup() template (#22764 / CodeRabbit).
+  it('still refreshes the shared plugin when the resolved config dir write fails', () => {
+    const freshSource =
+      'export default {\n  id: "orca-opencode-status",\n  setup: () => ({}),\n  server: () => ({}),\n};\n'
+    const service = new OpenCodeHookService(() => freshSource)
+    const sharedDir = join(userDataDir, 'opencode-hooks', 'shared')
+    const sharedPlugin = join(sharedDir, 'plugins', 'orca-opencode-status.js')
+    mkdirSync(join(sharedDir, 'plugins'), { recursive: true })
+    writeFileSync(sharedPlugin, 'export default { server: () => ({}) };\n')
+
+    const resolved = resolveOpenCodeConfigDirectory()
+    const resolvedPlugins = join(resolved, 'plugins')
+    mkdirSync(resolved, { recursive: true })
+    rmSync(resolvedPlugins, { recursive: true, force: true })
+    // Block mkdirSync(plugins) so the resolved-dir write throws.
+    writeFileSync(resolvedPlugins, 'not-a-directory')
+    try {
+      expect(service.buildPtyEnv(daemonSessionId, sharedDir)).toEqual({})
+      expect(readFileSync(sharedPlugin, 'utf8')).toBe(freshSource)
+    } finally {
+      rmSync(resolvedPlugins, { force: true })
+    }
+  })
+
   // Why: #22234 — OpenCode 2 installs under the plain `opencode` name, and its loader
   // rejects a default export that only has server(). Asserting the emitted *source* is
   // not enough; the installed file is what the v2 server validates, so load it.
