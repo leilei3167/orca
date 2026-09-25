@@ -12,8 +12,17 @@ type FakePane = {
   lastAgentStatus: 'idle' | 'working' | 'permission' | null
 }
 
+type FakeWaitResult = {
+  handle: string
+  condition: 'tui-idle'
+  satisfied: boolean
+  status: 'running' | 'exited' | 'unknown'
+  exitCode: number | null
+  blockedReason?: string
+}
+
 type FakeWaiter = {
-  resolve: (value: { satisfied: boolean; blockedReason?: string }) => void
+  resolve: (value: FakeWaitResult) => void
   reject: (error: Error) => void
   timer: ReturnType<typeof setTimeout>
 }
@@ -37,7 +46,13 @@ function createFakeRuntime(initial: Partial<FakePane>) {
         return Promise.reject(new Error('request_aborted'))
       }
       if (satisfiedNow()) {
-        return Promise.resolve({ satisfied: true })
+        return Promise.resolve({
+          handle: HANDLE,
+          condition: 'tui-idle',
+          satisfied: true,
+          status: 'running',
+          exitCode: null
+        })
       }
       return new Promise((resolve, reject) => {
         const waiter: FakeWaiter = {
@@ -59,7 +74,13 @@ function createFakeRuntime(initial: Partial<FakePane>) {
       for (const waiter of waiters) {
         waiters.delete(waiter)
         clearTimeout(waiter.timer)
-        waiter.resolve({ satisfied: true })
+        waiter.resolve({
+          handle: HANDLE,
+          condition: 'tui-idle',
+          satisfied: true,
+          status: 'running',
+          exitCode: null
+        })
       }
     }
   }
