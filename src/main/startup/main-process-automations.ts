@@ -1,6 +1,7 @@
 import { AutomationService } from '../automations/service'
 import { createHeadlessAutomationCompletion } from '../automations/headless-dispatch-terminal-completion'
 import { buildHeadlessAutomationWorktreeCreateArgs } from '../automations/headless-workspace-create'
+import type { AutomationRunCompletionObservation } from '../automations/run-completion-watcher'
 import { createRuntimeAutomationRunTerminalObserver } from '../automations/runtime-terminal-run-observer'
 import { mainProcessState as state } from './main-process-state'
 
@@ -58,29 +59,22 @@ export function initializeMainProcessAutomations(): AutomationService {
             terminalPaneKey = terminal.paneKey ?? null
             terminalPtyId = terminal.ptyId ?? null
             workspaceId = terminal.worktreeId
-            // Attach before showManagedWorktree: a reused pane can finish during that
-            // await, and the shared observer would treat leftover idle as "never started".
-            const completion = createHeadlessAutomationCompletion({
+          }
+          // Attach before showManagedWorktree on the reused path: a pane can finish
+          // during that await, and the shared observer would treat leftover idle as
+          // "never started". Swallow rejections until the dispatcher returns so the
+          // runner can attach its own handler without a main_unhandled_rejection.
+          const completion: Promise<AutomationRunCompletionObservation> =
+            createHeadlessAutomationCompletion({
               observeCompletion: (handle, options) =>
                 terminalObserver.observeCompletion(handle, options),
               terminalHandle
             })
+          void completion.catch(() => {})
+          if (automation.workspaceMode !== 'new_per_run') {
             const worktree = await runtime.showManagedWorktree(`id:${workspaceId}`)
             workspaceDisplayName = worktree.displayName ?? null
-            return {
-              workspaceId,
-              workspaceDisplayName,
-              terminalSessionId,
-              terminalPaneKey,
-              terminalPtyId,
-              completion
-            }
           }
-          const completion = createHeadlessAutomationCompletion({
-            observeCompletion: (handle, options) =>
-              terminalObserver.observeCompletion(handle, options),
-            terminalHandle
-          })
           return {
             workspaceId,
             workspaceDisplayName,
