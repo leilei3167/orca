@@ -104,7 +104,8 @@ describe('createHeadlessAutomationCompletion (#22725)', () => {
     await expect(
       createHeadlessAutomationCompletion({
         observeCompletion,
-        terminalHandle: HANDLE
+        terminalHandle: HANDLE,
+        signal: new AbortController().signal
       })
     ).resolves.toMatchObject({ status: 'completed', error: null })
     expect(observeCompletion).toHaveBeenCalledWith(
@@ -118,7 +119,8 @@ describe('createHeadlessAutomationCompletion (#22725)', () => {
     const observer = createRuntimeAutomationRunTerminalObserver(runtime)
     const completion = createHeadlessAutomationCompletion({
       observeCompletion: (handle, options) => observer.observeCompletion(handle, options),
-      terminalHandle: HANDLE
+      terminalHandle: HANDLE,
+      signal: new AbortController().signal
     })
 
     // Agent keeps working past the runtime default that used to reject headless.

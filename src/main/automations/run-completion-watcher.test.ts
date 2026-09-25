@@ -273,6 +273,33 @@ describe('authority-owned automation run completion', () => {
     service.stop()
   })
 
+  it('aborts in-flight headless completion on stop without persisting a terminal status', async () => {
+    const store = await createStore()
+    const automation = createAutomation(store)
+    let completionSignal: AbortSignal | null = null
+    let resolveCompletion!: (value: AutomationRunCompletionObservation) => void
+    const service = new AutomationService(store, {
+      headlessDispatcher: async ({ completionSignal: signal }) => {
+        completionSignal = signal
+        return {
+          ...LAUNCH_TARGET,
+          completion: new Promise((resolve) => {
+            resolveCompletion = resolve
+          })
+        }
+      }
+    })
+
+    const run = await service.runNow(automation.id)
+    expect(readRun(store, automation.id, run.id).status).toBe('dispatched')
+    service.stop()
+    expect(completionSignal?.aborted).toBe(true)
+    resolveCompletion({ status: 'completed', error: null })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(readRun(store, automation.id, run.id).status).toBe('dispatched')
+  })
+
   it('disposes watchers on stop', async () => {
     const store = await createStore()
     const automation = createAutomation(store)

@@ -22,7 +22,7 @@ export function initializeMainProcessAutomations(): AutomationService {
     // Why: desktop clients mirror remote-host automations, but only a server process should execute remote_host_service-owned schedules.
     allowRemoteHostScheduling: state.isServeMode,
     headlessDispatcher: state.isServeMode
-      ? async ({ automation, run, target }) => {
+      ? async ({ automation, run, target, completionSignal }) => {
           let terminalHandle: string
           let terminalSessionId: string | null = null
           let terminalPaneKey: string | null = null
@@ -68,7 +68,8 @@ export function initializeMainProcessAutomations(): AutomationService {
             createHeadlessAutomationCompletion({
               observeCompletion: (handle, options) =>
                 terminalObserver.observeCompletion(handle, options),
-              terminalHandle
+              terminalHandle,
+              signal: completionSignal
             })
           void completion.catch(() => {})
           if (automation.workspaceMode !== 'new_per_run') {

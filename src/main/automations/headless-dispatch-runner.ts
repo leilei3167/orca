@@ -27,6 +27,16 @@ function describeDispatchError(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+function shouldIgnoreHeadlessCompletion(
+  error: unknown,
+  abortSignal: AbortSignal | undefined
+): boolean {
+  if (abortSignal?.aborted) {
+    return true
+  }
+  return error instanceof Error && error.message === 'request_aborted'
+}
+
 export async function runHeadlessAutomationDispatch(
   ctx: HeadlessAutomationDispatchContext
 ): Promise<AutomationRun> {
@@ -63,9 +73,13 @@ export async function runHeadlessAutomationDispatch(
       ctx.watchRun(updated)
       return updated
     }
+    const completionAbortSignal = launch.completionAbortSignal
     void launch.completion
-      .then((completion) =>
-        ctx.markDispatchResult({
+      .then((completion) => {
+        if (completionAbortSignal?.aborted) {
+          return
+        }
+        return ctx.markDispatchResult({
           runId: run.id,
           status: completion.status,
           ...launchRunTarget,
@@ -73,15 +87,18 @@ export async function runHeadlessAutomationDispatch(
           outputSnapshot: completion.outputSnapshot ?? null,
           error: completion.error ?? null
         })
-      )
-      .catch((error) =>
-        ctx.markDispatchResult({
+      })
+      .catch((error) => {
+        if (shouldIgnoreHeadlessCompletion(error, completionAbortSignal)) {
+          return
+        }
+        return ctx.markDispatchResult({
           runId: run.id,
           status: 'dispatch_failed',
           ...launchRunTarget,
           error: describeDispatchError(error)
         })
-      )
+      })
     return updated
   } catch (error) {
     return runs.updateRun({

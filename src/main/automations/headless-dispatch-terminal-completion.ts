@@ -13,8 +13,9 @@ import type {
 export function createHeadlessAutomationCompletion(args: {
   observeCompletion: AutomationRunTerminalObserver['observeCompletion']
   terminalHandle: string
+  signal: AbortSignal
 }): Promise<AutomationRunCompletionObservation> {
   return args.observeCompletion(args.terminalHandle, {
-    signal: new AbortController().signal
+    signal: args.signal
   })
 }
