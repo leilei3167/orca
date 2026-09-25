@@ -18,7 +18,6 @@ type FakeWaitResult = {
   satisfied: boolean
   status: 'running' | 'exited' | 'unknown'
   exitCode: number | null
-  blockedReason?: string
 }
 
 type FakeWaiter = {

@@ -23,7 +23,6 @@ type FakeWaitResult = {
   satisfied: boolean
   status: FakePane['status']
   exitCode: number | null
-  blockedReason?: string
 }
 
 type FakeWaiter = {
@@ -240,5 +239,4 @@ describe('createRuntimeAutomationRunTerminalObserver', () => {
     expect(run.settled[0]?.status).toBe('dispatch_failed')
     await run.promise
   })
-
 })
