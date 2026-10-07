@@ -137,6 +137,32 @@ export function getMarkdownFenceRanges(content: string): MarkdownFenceRanges {
   return ranges
 }
 
+// Why: getMarkdownFenceRanges includes a fence that never closes, running it
+// through EOF. Diagram rendering needs the closed bit itself — a mermaid body
+// can already parse before the closing delimiter arrives.
+export function markdownFenceIsClosed(content: string, openLine: number): boolean {
+  const tracker = createMarkdownFenceTracker()
+  let lineNumber = 1
+  let closed = false
+  let tracking = false
+
+  forEachMarkdownLine(content, (lineStart, lineEnd) => {
+    if (closed) {
+      return
+    }
+    const wasInside = tracker.insideFence
+    const isFenceLine = tracker.consumeRange(content, lineStart, lineEnd)
+    if (!wasInside && isFenceLine && lineNumber === openLine) {
+      tracking = true
+    } else if (tracking && wasInside && !tracker.insideFence) {
+      closed = true
+    }
+    lineNumber += 1
+  })
+
+  return closed
+}
+
 export function isInsideMarkdownFenceRange(index: number, ranges: MarkdownFenceRanges): boolean {
   return ranges.some(([start, end]) => index >= start && index < end)
 }

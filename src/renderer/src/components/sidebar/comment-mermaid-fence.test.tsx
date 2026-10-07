@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('./CommentMermaidBlock', () => ({
@@ -24,26 +24,41 @@ afterEach(() => {
 })
 
 describe('renderMermaidFence', () => {
-  it('keeps a cut-off mermaid fence as source instead of mounting the diagram', async () => {
-    render(renderMermaidFence(TRUNCATED_DIAGRAM, 'diagram-wrap'))
+  it('keeps an open fence as source even when the body already parses', () => {
+    const view = render(renderMermaidFence('graph TD\n  A-->B', 'diagram-wrap', false))
 
-    await waitFor(() => {
-      expect(screen.queryByTestId('mermaid-diagram')).toBeNull()
-      expect(screen.getByText(/上下文不够用/)).toBeTruthy()
-    })
+    expect(screen.queryByTestId('mermaid-diagram')).toBeNull()
+    expect(view.container.querySelector('pre')).not.toBeNull()
+
+    view.rerender(renderMermaidFence('graph TD\n  A-->B\n  B-->C', 'diagram-wrap', false))
+
+    expect(screen.queryByTestId('mermaid-diagram')).toBeNull()
+    expect(view.container.querySelector('pre')).not.toBeNull()
+    expect(screen.getByText(/B-->C/)).toBeTruthy()
   })
 
-  it('mounts the diagram once the same fence is closed', async () => {
-    render(renderMermaidFence(CLOSED_DIAGRAM, 'diagram-wrap'))
+  it('keeps a cut-off mermaid fence as source instead of mounting the diagram', () => {
+    render(renderMermaidFence(TRUNCATED_DIAGRAM, 'diagram-wrap', false))
 
-    const diagram = await screen.findByTestId('mermaid-diagram', {}, { timeout: 1500 })
-    expect(diagram.textContent).toContain('上下文不够用')
+    expect(screen.queryByTestId('mermaid-diagram')).toBeNull()
+    expect(screen.getByText(/上下文不够用/)).toBeTruthy()
   })
 
-  it('still mounts a finished diagram that Mermaid rejects for a real syntax error', async () => {
-    render(renderMermaidFence(MID_SYNTAX_DIAGRAM, 'diagram-wrap'))
+  it('mounts the diagram once the same fence is closed', () => {
+    render(renderMermaidFence(CLOSED_DIAGRAM, 'diagram-wrap', true))
 
-    const diagram = await screen.findByTestId('mermaid-diagram')
-    expect(diagram.textContent).toContain('this is not valid')
+    expect(screen.getByTestId('mermaid-diagram').textContent).toContain('上下文不够用')
+  })
+
+  it('mounts a closed fence even when the body fails at end of input', () => {
+    render(renderMermaidFence(TRUNCATED_DIAGRAM, 'diagram-wrap', true))
+
+    expect(screen.getByTestId('mermaid-diagram').textContent).toContain('上下文不够用')
+  })
+
+  it('still mounts a finished diagram that Mermaid rejects for a real syntax error', () => {
+    render(renderMermaidFence(MID_SYNTAX_DIAGRAM, 'diagram-wrap', true))
+
+    expect(screen.getByTestId('mermaid-diagram').textContent).toContain('this is not valid')
   })
 })
