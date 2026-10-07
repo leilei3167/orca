@@ -1,7 +1,7 @@
 import React from 'react'
 import type { ExtraProps, Components } from 'react-markdown'
 import { NATIVE_CHAT_FILE_HREF_PREFIX } from '../../../../shared/native-chat-href-routing'
-import { markdownFenceIsClosed } from '@/components/editor/markdown-fence-scanner'
+import { markdownFenceIsClosed } from '@/components/editor/markdown-fence-close'
 import { isMermaidFence, isMermaidPre, renderMermaidFence } from './comment-mermaid-fence'
 import {
   GitHubUserAttachmentImage,
@@ -262,9 +262,13 @@ function DocumentCommentCode({
     )
   }
 
-  const openLine = node?.position?.start.line
+  const fenceStart = node?.position?.start
+  const fenceEndLine = node?.position?.end.line
   const fenceClosed =
-    source !== null && typeof openLine === 'number' && markdownFenceIsClosed(source, openLine)
+    source !== null &&
+    fenceStart !== undefined &&
+    typeof fenceEndLine === 'number' &&
+    markdownFenceIsClosed(source, fenceStart.line, fenceStart.column, fenceEndLine)
   return renderMermaidFence(children, MERMAID_FENCE_CLASS, fenceClosed)
 }
 
